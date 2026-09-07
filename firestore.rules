@@ -1,0 +1,8 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /memo-app/notes {
+      allow read, write: if true;
+    }
+  }
+}
