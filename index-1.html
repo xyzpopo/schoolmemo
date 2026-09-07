@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>메모장</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap');
+
+:root{
+  --ink:#121212;
+  --surface:#FFFFFF;
+  --blue:#2E4BFF;
+  --coral:#FF5D5D;
+  --line:rgba(18,18,18,0.14);
+  --field:rgba(18,18,18,0.045);
+  --r-data:10px;
+  --r-ui:14px;
+  --r-lg:26px;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%;}
+body{
+  min-height:100vh;
+  background:var(--field);
+  color:var(--ink);
+  font-family:'IBM Plex Sans KR',sans-serif;
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  padding:clamp(0px,4vw,40px);
+}
+button, input, textarea, select{ font:inherit; color:inherit; }
+button{ -webkit-tap-highlight-color:transparent; cursor:pointer; border:none; }
+:focus-visible{ outline:2.5px solid var(--blue); outline-offset:2px; }
+@media (prefers-reduced-motion:reduce){
+  *{ transition:none !important; animation:none !important; }
+}
+@keyframes shake{
+  10%,90%{ transform:translateX(-1px); }
+  20%,80%{ transform:translateX(2px); }
+  30%,50%,70%{ transform:translateX(-5px); }
+  40%,60%{ transform:translateX(5px); }
+}
+.sheet.shake{ animation:shake 0.4s ease; }
+.form-warning{
+  min-height:16px;
+  font-size:12.5px;
+  font-weight:700;
+  color:var(--coral);
+  margin-bottom:4px;
+  flex-shrink:0;
+}
+
+.app{
+  width:100%;
+  max-width:620px;
+  min-height:100vh;
+  background:var(--surface);
+  border-radius:var(--r-lg);
+}
+
+header{
+  padding:clamp(24px,4.5vw,36px) clamp(20px,4.5vw,36px) 0;
+}
+h1{
+  font-weight:700;
+  font-size:clamp(30px,6vw,40px);
+  letter-spacing:-0.02em;
+  margin-bottom:18px;
+}
+.nav-switch{
+  position:relative;
+  display:inline-flex;
+  background:var(--field);
+  border-radius:999px;
+  padding:4px;
+}
+.switch-knob{
+  position:absolute;
+  top:4px; bottom:4px; left:4px;
+  background:var(--blue);
+  border-radius:999px;
+  z-index:0;
+  transition:transform .28s cubic-bezier(.4,0,.2,1), width .28s cubic-bezier(.4,0,.2,1);
+}
+.tab{
+  position:relative;
+  z-index:1;
+  border:none;
+  background:none;
+  padding:10px 22px;
+  font-weight:700;
+  font-size:14px;
+  color:var(--ink);
+  transition:color .28s ease;
+}
+.tab.active{ color:#fff; }
+
+main{ padding:clamp(20px,4vw,30px) clamp(20px,4.5vw,36px) 64px; overflow-x:hidden; }
+.view{ display:none; transition:transform .2s ease, opacity .2s ease; }
+.view.active{ display:block; }
+.offset-left{ transform:translateX(-32px); opacity:0; }
+.offset-right{ transform:translateX(32px); opacity:0; }
+
+.panel-tag{
+  display:none;
+  font-weight:700;
+  font-size:12.5px;
+  color:#fff;
+  background:var(--ink);
+  padding:4px 10px;
+  border-radius:var(--r-ui);
+  width:fit-content;
+  margin-bottom:16px;
+}
+
+/* ---- memo list ---- */
+.list-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:4px;
+}
+.list-count{ font-size:13px; font-weight:600; color:#5B5D63; }
+.add-btn{
+  width:40px; height:40px;
+  border:none;
+  border-radius:var(--r-ui);
+  background:var(--blue);
+  color:#fff;
+  font-size:20px;
+  font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 6px 16px rgba(46,75,255,0.4);
+  transition:transform .15s ease, box-shadow .15s ease;
+  flex-shrink:0;
+}
+.add-btn:active{ transform:scale(0.94); box-shadow:0 3px 8px rgba(46,75,255,0.35); }
+
+.empty{ padding:64px 10px 30px; }
+.empty p{ font-weight:700; font-size:15px; color:#5B5D63; }
+
+.entry{
+  display:flex;
+  gap:14px;
+  padding:20px 0;
+}
+.entry-badge{
+  width:32px; height:32px;
+  border-radius:var(--r-data);
+  background:var(--ink);
+  color:#fff;
+  font-weight:700;
+  font-size:12.5px;
+  font-variant-numeric:tabular-nums;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+  margin-top:1px;
+}
+.entry-body{ flex:1; min-width:0; }
+.entry-top{
+  display:flex;
+  align-items:baseline;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.entry-date{
+  font-size:13px;
+  font-weight:600;
+  color:#5B5D63;
+  font-variant-numeric:tabular-nums;
+}
+.entry-title{ font-size:16.5px; font-weight:700; }
+.entry-subject{
+  font-size:11px;
+  font-weight:700;
+  color:var(--blue);
+  background:rgba(46,75,255,0.1);
+  padding:2px 9px;
+  border-radius:var(--r-data);
+}
+.entry-content{
+  margin-top:6px;
+  font-size:14.5px;
+  font-weight:400;
+  line-height:1.6;
+  color:#33343A;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+.entry-toggle{
+  margin-top:11px;
+  font-size:12px;
+  font-weight:700;
+  background:var(--field);
+  border:none;
+  border-radius:var(--r-ui);
+  padding:6px 14px;
+  transition:transform .15s ease, background .15s ease, color .15s ease;
+}
+.entry-toggle:hover{ background:var(--coral); color:#fff; }
+.entry-toggle:active{ transform:scale(0.95); }
+
+/* ---- calendar ---- */
+.cal-nav{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:16px;
+}
+.cal-nav button{
+  width:34px; height:34px;
+  border:none;
+  border-radius:var(--r-ui);
+  background:var(--field);
+  font-size:16px;
+  font-weight:700;
+  transition:transform .15s ease, background .15s ease;
+}
+.cal-nav button:active{ transform:scale(0.92); background:rgba(18,18,18,0.08); }
+.cal-month{ font-weight:700; font-size:19px; }
+.cal-grid{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:5px;
+  transition:transform .2s ease, opacity .2s ease;
+}
+.cal-grid-wrap{ overflow-x:hidden; }
+.cal-dow{
+  font-size:11.5px;
+  font-weight:700;
+  text-align:center;
+  color:#5B5D63;
+  padding:0 0 8px;
+}
+.cal-dow.weekend{ color:var(--coral); }
+.cal-cell{
+  min-height:clamp(52px,9vw,72px);
+  background:var(--field);
+  border-radius:var(--r-ui);
+  padding:6px 5px;
+}
+.cal-cell.empty{ background:none; }
+.cal-daynum{
+  display:inline-block;
+  font-size:11.5px;
+  font-weight:600;
+  color:#5B5D63;
+  font-variant-numeric:tabular-nums;
+}
+.cal-cell.weekend .cal-daynum{ color:var(--coral); }
+.cal-cell.today .cal-daynum{
+  background:var(--blue);
+  color:#fff;
+  padding:1px 5px;
+  border-radius:var(--r-data);
+}
+.cal-item{
+  position:relative;
+  margin-top:4px;
+  font-size:10px;
+  font-weight:700;
+  line-height:1.3;
+  word-break:break-word;
+}
+.cal-item.dismissed{ color:#8A8C92; font-weight:500; }
+.cal-item-subject{ color:var(--blue); }
+.cal-item.dismissed .cal-item-subject{ color:inherit; }
+.cal-item.dismissed::after{
+  content:'';
+  position:absolute; left:0; right:0; top:50%;
+  height:2px;
+  background:var(--coral);
+}
+
+/* ---- modal ---- */
+.overlay{
+  position:fixed; inset:0;
+  background:rgba(18,18,18,0.55);
+  display:none;
+  align-items:stretch;
+  justify-content:center;
+  padding:16px;
+  z-index:50;
+}
+.overlay.active{ display:flex; }
+.sheet{
+  background:var(--surface);
+  width:100%;
+  max-width:680px;
+  border-radius:var(--r-lg);
+  padding:28px 26px 24px;
+  box-shadow:0 24px 60px rgba(18,18,18,0.28);
+  display:flex;
+  flex-direction:column;
+  overflow-y:auto;
+}
+.sheet h2{ font-weight:700; font-size:19px; margin-bottom:20px; flex-shrink:0; }
+.field{ margin-bottom:16px; flex-shrink:0; }
+.field-grow{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  margin-bottom:16px;
+}
+.field-grow label{ flex-shrink:0; }
+.field-grow textarea{ flex:1; min-height:0; resize:none; }
+.field label{
+  display:block;
+  font-size:12.5px;
+  font-weight:700;
+  color:#5B5D63;
+  margin-bottom:6px;
+}
+.date-title-row{ display:flex; gap:8px; }
+.date-title-row .date-num{
+  flex:0 0 58px;
+  width:58px;
+  text-align:center;
+  font-size:13px;
+  padding:11px 2px;
+}
+.date-num::-webkit-outer-spin-button, .date-num::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+.date-num{ -moz-appearance:textfield; }
+.date-title-row input[type=text]{ flex:1 1 auto; width:auto; }
+input[type=text], input[type=number], textarea, select{
+  width:100%;
+  border:none;
+  background:var(--field);
+  border-radius:var(--r-ui);
+  padding:11px 13px;
+  font-size:14px;
+}
+input[type=text]:focus, input[type=number]:focus, textarea:focus, select:focus{
+  outline:none; background:var(--surface); box-shadow:0 0 0 3px rgba(46,75,255,0.3);
+}
+textarea{ resize:vertical; min-height:80px; }
+.sheet-actions{ display:flex; gap:10px; margin-top:10px; }
+.btn{
+  flex:1;
+  padding:13px;
+  border:none;
+  border-radius:var(--r-ui);
+  font-size:14px;
+  font-weight:700;
+  transition:transform .15s ease;
+}
+.btn:active{ transform:scale(0.97); }
+.btn-cancel{ background:var(--field); color:var(--ink); }
+.btn-save{ background:var(--blue); color:#fff; box-shadow:0 6px 16px rgba(46,75,255,0.35); }
+
+/* ---- responsive: wide / landscape ---- */
+@media (min-width:700px){
+  body{ align-items:center; }
+  .app{
+    min-height:auto;
+    max-height:92vh;
+    max-width:1060px;
+    box-shadow:0 30px 70px -20px rgba(18,18,18,0.28);
+    overflow:hidden;
+  }
+  header{ padding:34px 40px 0; }
+  h1{ margin-bottom:0; }
+  .nav-switch{ display:none; }
+  main{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:0;
+    padding:26px 0 0;
+    max-height:calc(92vh - 96px);
+  }
+  .view{ display:flex !important; flex-direction:column; min-height:0; padding:0 40px 40px; }
+  #view-memo{ padding-right:44px; }
+  #view-calendar{ padding-left:44px; }
+  .panel-tag{ display:block; }
+  #memo-list{ overflow-y:auto; }
+  .cal-grid-wrap{ overflow-y:auto; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>메모장</h1>
+    <div class="nav-switch" id="nav-switch">
+      <div class="switch-knob" id="switch-knob"></div>
+      <button class="tab active" data-tab="memo">메모장</button>
+      <button class="tab" data-tab="calendar">캘린더</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="view active" id="view-memo">
+      <div class="panel-tag">메모</div>
+      <div class="list-head">
+        <span class="list-count" id="list-count"></span>
+        <button class="add-btn" id="fab-add" aria-label="메모 추가">+</button>
+      </div>
+      <div id="memo-list"></div>
+    </section>
+
+    <section class="view" id="view-calendar">
+      <div class="panel-tag">캘린더</div>
+      <div class="cal-nav">
+        <button id="cal-prev" aria-label="이전 달">‹</button>
+        <div class="cal-month" id="cal-month-label"></div>
+        <button id="cal-next" aria-label="다음 달">›</button>
+      </div>
+      <div class="cal-grid-wrap">
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <h2>메모 추가</h2>
+    <div class="field">
+      <div class="date-title-row">
+        <input type="number" id="input-month" class="date-num" inputmode="numeric" placeholder="월">
+        <input type="number" id="input-day" class="date-num" inputmode="numeric" placeholder="일">
+        <input type="text" id="input-title" placeholder="제목">
+      </div>
+    </div>
+    <div class="field">
+      <input type="text" id="input-subject" placeholder="과목">
+    </div>
+    <div class="field field-grow">
+      <label>내용</label>
+      <textarea id="input-content" placeholder="내용"></textarea>
+    </div>
+    <div class="form-warning" id="form-warning"></div>
+    <div class="sheet-actions">
+      <button class="btn btn-cancel" id="btn-cancel">취소</button>
+      <button class="btn btn-save" id="btn-save">추가</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+
+// ▼▼▼ Firebase 콘솔 > 프로젝트 설정 > 웹 앱 에서 복사한 값으로 교체 ▼▼▼
+const firebaseConfig = {
+  apiKey: "AIzaSyBkdwJtFIaQ1STwjhyYHifFMNnVs7aLVX8",
+  authDomain: "memo-app-3ce1f.firebaseapp.com",
+  projectId: "memo-app-3ce1f",
+  storageBucket: "memo-app-3ce1f.firebasestorage.app",
+  messagingSenderId: "375882184011",
+  appId: "1:375882184011:web:586d2c3e130af0e25b24ce"
+};
+// ▲▲▲ 여기까지 ▲▲▲
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
+const notesRef = doc(db, "memo-app", "notes");
+let notes = [];
+let calMonth = new Date().getMonth() + 1;
+let calYear = new Date().getFullYear();
+
+const memoListEl = document.getElementById('memo-list');
+const overlay = document.getElementById('overlay');
+const monthSel = document.getElementById('input-month');
+const daySel = document.getElementById('input-day');
+
+monthSel.value = calMonth;
+daySel.value = new Date().getDate();
+
+function daysInMonth(m){
+  return new Date(new Date().getFullYear(), m, 0).getDate();
+}
+function sanitizeMonth(){
+  let v = parseInt(monthSel.value, 10);
+  if(isNaN(v)) v = 1;
+  if(v > 12) v = 12;
+  if(v < 1) v = 1;
+  monthSel.value = v;
+}
+function sanitizeDay(){
+  let v = parseInt(daySel.value, 10);
+  if(isNaN(v)) v = 1;
+  const max = daysInMonth(parseInt(monthSel.value, 10) || 1);
+  if(v > max) v = max;
+  if(v < 1) v = 1;
+  daySel.value = v;
+}
+monthSel.addEventListener('blur', ()=>{ sanitizeMonth(); sanitizeDay(); });
+daySel.addEventListener('blur', sanitizeDay);
+
+const navSwitch = document.getElementById('nav-switch');
+const knob = document.getElementById('switch-knob');
+
+function updateKnob(){
+  const active = navSwitch.querySelector('.tab.active');
+  if(!active) return;
+  knob.style.width = active.offsetWidth + 'px';
+  knob.style.transform = `translateX(${active.offsetLeft}px)`;
+}
+
+function isNarrow(){ return window.innerWidth < 700; }
+function prefersReducedMotion(){ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+
+function switchView(tab){
+  const oldTab = navSwitch.querySelector('.tab.active');
+  if(oldTab === tab) return;
+  const forward = tab.dataset.tab === 'calendar';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  tab.classList.add('active');
+  updateKnob();
+
+  const oldView = document.getElementById('view-'+oldTab.dataset.tab);
+  const newView = document.getElementById('view-'+tab.dataset.tab);
+
+  if(!isNarrow() || prefersReducedMotion()){
+    oldView.classList.remove('active');
+    newView.classList.add('active');
+    if(tab.dataset.tab==='calendar') renderCalendar();
+    return;
+  }
+
+  oldView.classList.add(forward ? 'offset-left' : 'offset-right');
+  setTimeout(()=>{
+    oldView.classList.remove('active','offset-left','offset-right');
+    newView.classList.add(forward ? 'offset-right' : 'offset-left', 'active');
+    if(tab.dataset.tab==='calendar') renderCalendar();
+    void newView.offsetWidth;
+    requestAnimationFrame(()=>{
+      newView.classList.remove('offset-left','offset-right');
+    });
+  }, 200);
+}
+
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=> switchView(tab));
+});
+window.addEventListener('resize', updateKnob);
+window.addEventListener('load', updateKnob);
+
+const sheetEl = document.querySelector('.sheet');
+const warningEl = document.getElementById('form-warning');
+
+function showFormWarning(msg){
+  warningEl.textContent = msg;
+  sheetEl.classList.remove('shake');
+  void sheetEl.offsetWidth;
+  sheetEl.classList.add('shake');
+}
+function hideFormWarning(){
+  warningEl.textContent = '';
+}
+sheetEl.addEventListener('animationend', ()=>{ sheetEl.classList.remove('shake'); });
+
+document.getElementById('fab-add').addEventListener('click', ()=>{
+  hideFormWarning();
+  overlay.classList.add('active');
+});
+document.getElementById('btn-cancel').addEventListener('click', ()=>{
+  hideFormWarning();
+  overlay.classList.remove('active');
+});
+document.getElementById('btn-save').addEventListener('click', async ()=>{
+  sanitizeMonth();
+  sanitizeDay();
+  const title = document.getElementById('input-title').value.trim();
+  const content = document.getElementById('input-content').value.trim();
+  const subject = document.getElementById('input-subject').value.trim();
+  const month = parseInt(monthSel.value);
+  const day = parseInt(daySel.value);
+  if(!title || !content){
+    let msg = '제목과 내용을 입력해주세요!';
+    if(title && !content) msg = '내용을 적어주세요!';
+    else if(!title && content) msg = '제목을 입력해주세요!';
+    showFormWarning(msg);
+    return;
+  }
+  hideFormWarning();
+  notes.push({ id: Date.now(), month, day, subject, title, content, dismissed:false });
+  await saveNotes();
+  document.getElementById('input-title').value='';
+  document.getElementById('input-content').value='';
+  document.getElementById('input-subject').value='';
+  overlay.classList.remove('active');
+  renderMemoList();
+  renderCalendar();
+});
+overlay.addEventListener('click', (e)=>{ if(e.target===overlay) overlay.classList.remove('active'); });
+
+async function loadNotes(){
+  memoListEl.innerHTML = '<div class="empty"><p>불러오는 중…</p></div>';
+  try{
+    const snap = await getDoc(notesRef);
+    notes = snap.exists() ? (snap.data().items || []) : [];
+  }catch(e){
+    notes = [];
+  }
+  renderMemoList();
+  renderCalendar();
+  updateKnob();
+}
+
+async function saveNotes(){
+  try{
+    await setDoc(notesRef, { items: notes });
+  }catch(e){}
+}
+
+function renderMemoList(){
+  const visible = notes.filter(n=>!n.dismissed);
+  document.getElementById('list-count').textContent = visible.length ? `${visible.length}개` : '';
+  if(visible.length===0){
+    memoListEl.innerHTML = '<div class="empty"><p>첫 메모를 추가하세요.</p></div>';
+    return;
+  }
+  memoListEl.innerHTML = visible.map((n,i)=>`
+    <div class="entry">
+      <div class="entry-badge">${String(i+1).padStart(2,'0')}</div>
+      <div class="entry-body">
+        <div class="entry-top">
+          <span class="entry-date">${String(n.month).padStart(2,'0')}.${String(n.day).padStart(2,'0')}</span>
+          ${n.subject?`<span class="entry-subject">${escapeHtml(n.subject)}</span>`:''}
+          <span class="entry-title">${escapeHtml(n.title)}</span>
+        </div>
+        ${n.content?`<div class="entry-content">${escapeHtml(n.content)}</div>`:''}
+        <button class="entry-toggle" data-id="${n.id}">해제</button>
+      </div>
+    </div>
+  `).join('');
+  memoListEl.querySelectorAll('.entry-toggle').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = Number(btn.dataset.id);
+      const note = notes.find(n=>n.id===id);
+      note.dismissed = true;
+      await saveNotes();
+      renderMemoList();
+      renderCalendar();
+    });
+  });
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function goToMonth(delta){
+  const grid = document.getElementById('cal-grid');
+  if(prefersReducedMotion()){
+    calMonth += delta;
+    if(calMonth<1){ calMonth=12; calYear--; }
+    if(calMonth>12){ calMonth=1; calYear++; }
+    renderCalendar();
+    return;
+  }
+  const forward = delta > 0;
+  grid.classList.add(forward ? 'offset-left' : 'offset-right');
+  setTimeout(()=>{
+    calMonth += delta;
+    if(calMonth<1){ calMonth=12; calYear--; }
+    if(calMonth>12){ calMonth=1; calYear++; }
+    renderCalendar();
+    grid.classList.remove('offset-left','offset-right');
+    grid.classList.add(forward ? 'offset-right' : 'offset-left');
+    void grid.offsetWidth;
+    requestAnimationFrame(()=>{
+      grid.classList.remove('offset-left','offset-right');
+    });
+  }, 200);
+}
+document.getElementById('cal-prev').addEventListener('click', ()=> goToMonth(-1));
+document.getElementById('cal-next').addEventListener('click', ()=> goToMonth(1));
+
+function renderCalendar(){
+  document.getElementById('cal-month-label').textContent = calMonth + '월';
+  const grid = document.getElementById('cal-grid');
+  const firstDow = new Date(calYear, calMonth-1, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+  const today = new Date();
+  const dowNames = ['일','월','화','수','목','금','토'];
+  let html = dowNames.map((d,idx)=>`<div class="cal-dow ${(idx===0||idx===6)?'weekend':''}">${d}</div>`).join('');
+  for(let i=0;i<firstDow;i++){ html += '<div class="cal-cell empty"></div>'; }
+  for(let day=1; day<=daysInMonth; day++){
+    const dayNotes = notes.filter(n=>n.month===calMonth && n.day===day);
+    const dow = new Date(calYear, calMonth-1, day).getDay();
+    const isToday = today.getFullYear()===calYear && today.getMonth()+1===calMonth && today.getDate()===day;
+    const cls = ['cal-cell'];
+    if(dow===0||dow===6) cls.push('weekend');
+    if(isToday) cls.push('today');
+    html += `<div class="${cls.join(' ')}">
+      <span class="cal-daynum">${day}</span>
+      ${dayNotes.map(n=>`<div class="cal-item ${n.dismissed?'dismissed':''}">${n.subject?`<span class="cal-item-subject">${escapeHtml(n.subject)}</span> `:''}${escapeHtml(n.title)}</div>`).join('')}
+    </div>`;
+  }
+  grid.innerHTML = html;
+}
+
+loadNotes();
+</script>
+</body>
+</html>
