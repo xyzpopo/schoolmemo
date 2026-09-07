@@ -15,7 +15,7 @@
 
 ## 2. Firestore 보안 규칙
 
-Firestore Database → 규칙 탭 → 아래 내용 붙여넣기 → 게시
+`firestore.rules` 파일 내용 (이미 저장소에 포함됨):
 
 ```
 rules_version = '2';
@@ -30,13 +30,26 @@ service cloud.firestore {
 
 로그인 기능이 없는 개인용 앱이라 이 문서 하나만 누구나 읽고 쓸 수 있게 열어둔 규칙. URL을 남에게 공유하지 않으면 사실상 안전함.
 
+**최초 1회는 콘솔에서 직접 붙여넣기**: Firestore Database → 규칙 탭 → 위 내용 붙여넣기 → 게시
+
+**이후 자동배포 설정 (선택)**: `firestore.rules` 파일을 고치고 push만 하면 깃헙 액션이 알아서 반영해줌.
+1. 터미널에서 `npm install -g firebase-tools` (최초 1회)
+2. `firebase login:ci` 실행 → 브라우저에서 로그인 → 터미널에 뜨는 토큰 복사
+3. GitHub 저장소 → **Settings → Secrets and variables → Actions → New repository secret**
+4. Name: `FIREBASE_TOKEN`, Secret: 방금 복사한 토큰 → Add secret
+5. 이후 `firestore.rules`를 고쳐서 main에 push하면 자동 배포됨 (`.github/workflows/firebase-rules-deploy.yml`이 이미 포함되어 있음)
+
 ## 3. GitHub에 올리기
 
 1. https://github.com → New repository
 2. 이름 입력, Public/Private 선택, **"Add a README file" 체크 해제** (직접 올릴 것이므로) → Create repository
 3. 저장소 페이지 → **Add file → Upload files**
-4. `index.html`, `README.md`, `.gitignore` 끌어다 놓기 (`.gitignore`가 안 보이면 생략 가능, 없어도 무방)
+4. 다음 파일 끌어다 놓기: `index.html`, `README.md`, `.gitignore`, `firestore.rules`, `firebase.json`, `.firebaserc`
+   (점으로 시작하는 파일이 파일탐색기에 안 보이면 생략 가능, 없어도 동작엔 문제없음)
 5. 하단 **Commit changes** 클릭
+6. 워크플로 파일은 폴더가 있어서 드래그가 번거로울 수 있음 → **Add file → Create new file** → 파일명 칸에 `.github/workflows/firebase-rules-deploy.yml` 통째로 입력(자동으로 폴더 생성됨) → 내용 붙여넣기 → Commit
+
+내가 깃헙 토큰 받아서 한 번에 커밋해줄 수도 있음 (직전 답변 참고)
 
 ### 업데이트할 때
 파일이 바뀔 때마다: 저장소 → **Add file → Upload files** → 같은 이름 파일 다시 올리면 자동 덮어써짐 → Commit changes
