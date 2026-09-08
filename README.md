@@ -32,12 +32,15 @@ service cloud.firestore {
 
 **최초 1회는 콘솔에서 직접 붙여넣기**: Firestore Database → 규칙 탭 → 위 내용 붙여넣기 → 게시
 
-**이후 자동배포 설정 (선택)**: `firestore.rules` 파일을 고치고 push만 하면 깃헙 액션이 알아서 반영해줌.
-1. 터미널에서 `npm install -g firebase-tools` (최초 1회)
-2. `firebase login:ci` 실행 → 브라우저에서 로그인 → 터미널에 뜨는 토큰 복사
-3. GitHub 저장소 → **Settings → Secrets and variables → Actions → New repository secret**
-4. Name: `FIREBASE_TOKEN`, Secret: 방금 복사한 토큰 → Add secret
-5. 이후 `firestore.rules`를 고쳐서 main에 push하면 자동 배포됨 (`.github/workflows/firebase-rules-deploy.yml`이 이미 포함되어 있음)
+**이후 자동배포 설정 (선택, 터미널 불필요)**: `firestore.rules` 파일을 고치고 push만 하면 깃헙 액션이 알아서 반영해줌.
+1. https://console.cloud.google.com/iam-admin/serviceaccounts/create?project=memo-app-3ce1f 접속
+2. 이름 입력 (예: github-deploy) → 만들고 계속하기
+3. 역할에서 **"Firebase Admin"** 검색해서 선택 → 계속 → 완료
+4. 생성된 계정 클릭 → 상단 **키** 탭 → **키 추가 → 새 키 만들기** → JSON → 자동으로 파일 다운로드됨
+5. 다운로드된 `.json` 파일을 텍스트 앱으로 열어서 전체 내용 복사
+6. GitHub 저장소 → **Settings → Secrets and variables → Actions → New repository secret**
+7. Name: `GCP_SA_KEY`, Secret: 방금 복사한 JSON 전체 → Add secret
+8. 이후 `firestore.rules`를 고쳐서 main에 push하면 자동 배포됨
 
 ## 3. GitHub에 올리기
 
