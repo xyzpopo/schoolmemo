@@ -42,7 +42,7 @@ button{ -webkit-tap-highlight-color:transparent; cursor:pointer; border:none; }
   30%,50%,70%{ transform:translateX(-5px); }
   40%,60%{ transform:translateX(5px); }
 }
-.sheet.shake{ animation:shake 0.4s ease; }
+.shake{ animation:shake 0.4s ease; }
 .form-warning{
   min-height:16px;
   font-size:12.5px;
@@ -51,6 +51,31 @@ button{ -webkit-tap-highlight-color:transparent; cursor:pointer; border:none; }
   margin-bottom:4px;
   flex-shrink:0;
 }
+.auth-screen{
+  position:fixed; inset:0;
+  background:var(--field);
+  display:flex; align-items:center; justify-content:center;
+  padding:20px;
+  z-index:200;
+}
+.auth-card{
+  width:100%; max-width:360px;
+  background:var(--surface);
+  border-radius:var(--r-lg);
+  padding:32px 26px;
+  box-shadow:0 24px 60px rgba(18,18,18,0.15);
+}
+.auth-card h1{ text-align:center; margin-bottom:24px; }
+.auth-card h2{ font-weight:700; font-size:19px; margin-bottom:8px; }
+.auth-note{ font-size:13px; color:#5B5D63; margin-bottom:18px; line-height:1.5; }
+.auth-card .btn{ width:100%; margin-top:6px; }
+.user-bar{
+  display:flex; align-items:center; justify-content:flex-end; gap:10px;
+  padding:10px clamp(20px,4.5vw,36px) 0;
+  font-size:12px; color:#5B5D63;
+}
+.user-bar button{ background:none; font-size:12px; font-weight:700; color:var(--blue); }
+#app-main{ display:none; }
 
 .app{
   width:100%;
@@ -383,7 +408,40 @@ textarea{ resize:vertical; min-height:80px; }
 </style>
 </head>
 <body>
-<div class="app">
+<div class="auth-screen" id="auth-login">
+  <div class="auth-card">
+    <h1>메모장</h1>
+    <div class="form-warning" id="login-warning"></div>
+    <div class="field">
+      <label>번호</label>
+      <input type="number" id="login-number" inputmode="numeric" placeholder="번호">
+    </div>
+    <div class="field">
+      <label>비밀번호</label>
+      <input type="password" id="login-password" placeholder="비밀번호">
+    </div>
+    <button class="btn btn-save" id="btn-login">로그인</button>
+  </div>
+</div>
+
+<div class="auth-screen" id="auth-changepw" style="display:none;">
+  <div class="auth-card">
+    <h2>비밀번호 변경</h2>
+    <p class="auth-note">초기 비밀번호입니다. 새 비밀번호로 바꿔주세요.</p>
+    <div class="form-warning" id="changepw-warning"></div>
+    <div class="field">
+      <label>새 비밀번호</label>
+      <input type="password" id="new-password" placeholder="새 비밀번호">
+    </div>
+    <div class="field">
+      <label>새 비밀번호 확인</label>
+      <input type="password" id="new-password-confirm" placeholder="새 비밀번호 확인">
+    </div>
+    <button class="btn btn-save" id="btn-changepw">변경</button>
+  </div>
+</div>
+
+<div class="app" id="app-main">
   <header>
     <h1>메모장</h1>
     <div class="nav-switch" id="nav-switch">
@@ -392,6 +450,10 @@ textarea{ resize:vertical; min-height:80px; }
       <button class="tab" data-tab="calendar">캘린더</button>
     </div>
   </header>
+  <div class="user-bar">
+    <span id="user-label"></span>
+    <button id="btn-logout">로그아웃</button>
+  </div>
 
   <main>
     <section class="view active" id="view-memo">
@@ -460,6 +522,49 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 const notesRef = doc(db, "memo-app", "notes");
+const accountsRef = doc(db, "memo-app", "accounts");
+const logRef = doc(db, "memo-app", "activity-log");
+const SESSION_KEY = "memo-app-session";
+let currentUser = null;
+let accounts = {};
+
+async function hashPassword(pw){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function loadSession(){
+  try{
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function saveSession(number){
+  try{ localStorage.setItem(SESSION_KEY, JSON.stringify({ number })); }catch(e){}
+}
+function clearSession(){
+  try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
+}
+async function loadAccounts(){
+  try{
+    const snap = await getDoc(accountsRef);
+    accounts = snap.exists() ? (snap.data().accounts || {}) : {};
+  }catch(e){ accounts = {}; }
+}
+async function saveAccounts(){
+  try{ await setDoc(accountsRef, { accounts }); }catch(e){}
+}
+async function logActivity(action, note){
+  try{
+    const snap = await getDoc(logRef);
+    const entries = snap.exists() ? (snap.data().entries || []) : [];
+    entries.push({
+      action, number: currentUser.number,
+      title: note.title, month: note.month, day: note.day,
+      at: new Date().toISOString()
+    });
+    await setDoc(logRef, { entries });
+  }catch(e){}
+}
 let notes = [];
 let calMonth = new Date().getMonth() + 1;
 let calYear = new Date().getFullYear();
@@ -545,11 +650,14 @@ window.addEventListener('load', updateKnob);
 const sheetEl = document.querySelector('.sheet');
 const warningEl = document.getElementById('form-warning');
 
+function shakeEl(el){
+  el.classList.remove('shake');
+  void el.offsetWidth;
+  el.classList.add('shake');
+}
 function showFormWarning(msg){
   warningEl.textContent = msg;
-  sheetEl.classList.remove('shake');
-  void sheetEl.offsetWidth;
-  sheetEl.classList.add('shake');
+  shakeEl(sheetEl);
 }
 function hideFormWarning(){
   warningEl.textContent = '';
@@ -580,8 +688,10 @@ document.getElementById('btn-save').addEventListener('click', async ()=>{
     return;
   }
   hideFormWarning();
-  notes.push({ id: Date.now(), month, day, subject, title, content, dismissed:false });
+  const newNote = { id: Date.now(), month, day, subject, title, content, dismissed:false };
+  notes.push(newNote);
   await saveNotes();
+  logActivity('add', newNote);
   document.getElementById('input-title').value='';
   document.getElementById('input-content').value='';
   document.getElementById('input-subject').value='';
@@ -640,6 +750,7 @@ function renderMemoList(){
       const note = notes.find(n=>n.id===id);
       note.dismissed = true;
       await saveNotes();
+      logActivity('dismiss', note);
       renderMemoList();
       renderCalendar();
     });
@@ -647,9 +758,11 @@ function renderMemoList(){
   memoListEl.querySelectorAll('.entry-delete').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const id = Number(btn.dataset.id);
+      const note = notes.find(n=>n.id===id);
       if(!confirm('완전히 삭제할까요? 되돌릴 수 없습니다.')) return;
       notes = notes.filter(n=>n.id!==id);
       await saveNotes();
+      if(note) logActivity('delete', note);
       renderMemoList();
       renderCalendar();
     });
@@ -713,7 +826,112 @@ function renderCalendar(){
   grid.innerHTML = html;
 }
 
-loadNotes();
+function enterApp(){
+  document.getElementById('auth-login').style.display = 'none';
+  document.getElementById('auth-changepw').style.display = 'none';
+  document.getElementById('app-main').style.display = 'block';
+  document.getElementById('user-label').textContent = currentUser.number + '번';
+  loadNotes();
+}
+function showChangePassword(){
+  document.getElementById('auth-login').style.display = 'none';
+  document.getElementById('auth-changepw').style.display = 'flex';
+  document.getElementById('new-password').value = '';
+  document.getElementById('new-password-confirm').value = '';
+}
+
+document.getElementById('btn-login').addEventListener('click', async ()=>{
+  const numberEl = document.getElementById('login-number');
+  const pwEl = document.getElementById('login-password');
+  const warn = document.getElementById('login-warning');
+  const card = document.querySelector('#auth-login .auth-card');
+  const number = parseInt(numberEl.value, 10);
+  const password = pwEl.value;
+
+  if(isNaN(number) || !password){
+    warn.textContent = '번호와 비밀번호를 입력해주세요!';
+    shakeEl(card);
+    return;
+  }
+  await loadAccounts();
+  const key = String(number);
+  const acc = accounts[key];
+  const hashed = await hashPassword(password);
+
+  if(!acc){
+    if(password !== '123abc'){
+      warn.textContent = '번호 또는 비밀번호가 틀렸습니다!';
+      shakeEl(card);
+      return;
+    }
+    accounts[key] = { password: await hashPassword('123abc'), mustChange: true };
+    await saveAccounts();
+  } else if(acc.password !== hashed){
+    warn.textContent = '번호 또는 비밀번호가 틀렸습니다!';
+    shakeEl(card);
+    return;
+  }
+
+  warn.textContent = '';
+  currentUser = { number };
+  saveSession(number);
+  pwEl.value = '';
+
+  if(accounts[key].mustChange){
+    showChangePassword();
+  } else {
+    enterApp();
+  }
+});
+
+document.getElementById('btn-changepw').addEventListener('click', async ()=>{
+  const p1 = document.getElementById('new-password').value;
+  const p2 = document.getElementById('new-password-confirm').value;
+  const warn = document.getElementById('changepw-warning');
+  const card = document.querySelector('#auth-changepw .auth-card');
+
+  if(!p1 || p1.length < 4){
+    warn.textContent = '4자 이상 입력해주세요!';
+    shakeEl(card);
+    return;
+  }
+  if(p1 === '123abc'){
+    warn.textContent = '초기 비밀번호는 다시 쓸 수 없습니다!';
+    shakeEl(card);
+    return;
+  }
+  if(p1 !== p2){
+    warn.textContent = '비밀번호가 일치하지 않습니다!';
+    shakeEl(card);
+    return;
+  }
+  const key = String(currentUser.number);
+  accounts[key] = { password: await hashPassword(p1), mustChange: false };
+  await saveAccounts();
+  warn.textContent = '';
+  enterApp();
+});
+
+document.getElementById('btn-logout').addEventListener('click', ()=>{
+  clearSession();
+  location.reload();
+});
+
+(async function initAuth(){
+  const session = loadSession();
+  if(session && Number.isInteger(session.number)){
+    await loadAccounts();
+    const key = String(session.number);
+    if(accounts[key]){
+      currentUser = { number: session.number };
+      if(accounts[key].mustChange){
+        showChangePassword();
+      } else {
+        enterApp();
+      }
+    }
+  }
+})();
 </script>
 </body>
 </html>
