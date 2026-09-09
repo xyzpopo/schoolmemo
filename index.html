@@ -75,6 +75,13 @@ button{ -webkit-tap-highlight-color:transparent; cursor:pointer; border:none; }
   font-size:12px; color:#5B5D63;
 }
 .user-bar button{ background:none; font-size:12px; font-weight:700; color:var(--blue); }
+.log-list{ flex:1; overflow-y:auto; min-height:0; margin-bottom:12px; }
+.log-row{ padding:10px 0; border-bottom:1px solid var(--line); font-size:13px; line-height:1.5; }
+.log-row:last-child{ border-bottom:none; }
+.log-time{ color:#5B5D63; font-size:11.5px; }
+.log-action{ font-weight:700; }
+.log-action.add{ color:var(--blue); }
+.log-action.delete{ color:var(--coral); }
 #app-main{ display:none; }
 
 .app{
@@ -453,6 +460,7 @@ textarea{ resize:vertical; min-height:80px; }
   </header>
   <div class="user-bar">
     <span id="user-label"></span>
+    <button id="btn-log">기록</button>
     <button id="btn-logout">로그아웃</button>
   </div>
 
@@ -501,6 +509,16 @@ textarea{ resize:vertical; min-height:80px; }
     <div class="sheet-actions">
       <button class="btn btn-cancel" id="btn-cancel">취소</button>
       <button class="btn btn-save" id="btn-save">추가</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="log-overlay">
+  <div class="sheet" style="max-width:480px;">
+    <h2>활동 기록</h2>
+    <div class="log-list" id="log-list"></div>
+    <div class="sheet-actions">
+      <button class="btn btn-cancel" id="btn-log-close">닫기</button>
     </div>
   </div>
 </div>
@@ -916,6 +934,35 @@ document.getElementById('btn-changepw').addEventListener('click', async ()=>{
 document.getElementById('btn-logout').addEventListener('click', ()=>{
   clearSession();
   location.reload();
+});
+
+document.getElementById('btn-log').addEventListener('click', async ()=>{
+  const listEl = document.getElementById('log-list');
+  listEl.innerHTML = '<p style="color:#5B5D63;font-size:13px;">불러오는 중…</p>';
+  document.getElementById('log-overlay').classList.add('active');
+  let entries = [];
+  try{
+    const snap = await getDoc(logRef);
+    entries = snap.exists() ? (snap.data().entries || []) : [];
+  }catch(e){}
+  entries.sort((a,b)=> new Date(b.at) - new Date(a.at));
+  if(entries.length===0){
+    listEl.innerHTML = '<p style="color:#5B5D63;font-size:13px;">기록이 없습니다.</p>';
+    return;
+  }
+  const actionLabel = { add:'추가', dismiss:'해제', delete:'삭제' };
+  listEl.innerHTML = entries.map(e=>{
+    const d = new Date(e.at);
+    const timeStr = `${d.getMonth()+1}.${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    return `<div class="log-row">
+      <span class="log-time">${timeStr}</span> ·
+      <span class="log-action ${e.action}">${actionLabel[e.action]||e.action}</span> ·
+      ${e.number}번 · ${escapeHtml(e.title||'')}
+    </div>`;
+  }).join('');
+});
+document.getElementById('btn-log-close').addEventListener('click', ()=>{
+  document.getElementById('log-overlay').classList.remove('active');
 });
 
 (async function initAuth(){
