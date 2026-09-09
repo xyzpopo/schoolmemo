@@ -189,18 +189,20 @@ main{ padding:clamp(20px,4vw,30px) clamp(20px,4.5vw,36px) 64px; overflow-x:hidde
   white-space:pre-wrap;
   word-break:break-word;
 }
-.entry-toggle{
-  margin-top:11px;
+.entry-actions{ display:flex; gap:8px; margin-top:11px; }
+.entry-toggle, .entry-delete{
   font-size:12px;
   font-weight:700;
-  background:var(--field);
   border:none;
   border-radius:var(--r-ui);
   padding:6px 14px;
   transition:transform .15s ease, background .15s ease, color .15s ease;
 }
+.entry-toggle{ background:var(--field); }
 .entry-toggle:hover{ background:var(--coral); color:#fff; }
-.entry-toggle:active{ transform:scale(0.95); }
+.entry-delete{ background:none; color:var(--coral); }
+.entry-delete:hover{ background:var(--coral); color:#fff; }
+.entry-toggle:active, .entry-delete:active{ transform:scale(0.95); }
 
 /* ---- calendar ---- */
 .cal-nav{
@@ -625,7 +627,10 @@ function renderMemoList(){
           <span class="entry-title">${escapeHtml(n.title)}</span>
         </div>
         ${n.content?`<div class="entry-content">${escapeHtml(n.content)}</div>`:''}
-        <button class="entry-toggle" data-id="${n.id}">해제</button>
+        <div class="entry-actions">
+          <button class="entry-toggle" data-id="${n.id}">해제</button>
+          <button class="entry-delete" data-id="${n.id}">삭제</button>
+        </div>
       </div>
     </div>
   `).join('');
@@ -634,6 +639,16 @@ function renderMemoList(){
       const id = Number(btn.dataset.id);
       const note = notes.find(n=>n.id===id);
       note.dismissed = true;
+      await saveNotes();
+      renderMemoList();
+      renderCalendar();
+    });
+  });
+  memoListEl.querySelectorAll('.entry-delete').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = Number(btn.dataset.id);
+      if(!confirm('완전히 삭제할까요? 되돌릴 수 없습니다.')) return;
+      notes = notes.filter(n=>n.id!==id);
       await saveNotes();
       renderMemoList();
       renderCalendar();
