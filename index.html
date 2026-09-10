@@ -70,11 +70,23 @@ button{ -webkit-tap-highlight-color:transparent; cursor:pointer; border:none; }
 .auth-note{ font-size:13px; color:#5B5D63; margin-bottom:18px; line-height:1.5; }
 .auth-card .btn{ width:100%; margin-top:6px; }
 .user-bar{
-  display:flex; align-items:center; justify-content:flex-end; gap:10px;
+  display:flex; align-items:center; justify-content:flex-end; gap:8px;
   padding:10px clamp(20px,4.5vw,36px) 0;
   font-size:12px; color:#5B5D63;
 }
-.user-bar button{ background:none; font-size:12px; font-weight:700; color:var(--blue); }
+.user-bar button{
+  font-size:12px;
+  font-weight:700;
+  border:none;
+  border-radius:var(--r-ui);
+  padding:6px 14px;
+  background:var(--field);
+  transition:background .15s ease, color .15s ease;
+}
+#btn-log{ color:var(--ink); }
+#btn-log:hover{ background:var(--blue); color:#fff; }
+#btn-logout{ color:var(--coral); }
+#btn-logout:hover{ background:var(--coral); color:#fff; }
 .log-list{ flex:1; overflow-y:auto; min-height:0; margin-bottom:12px; }
 .log-row{ padding:10px 0; border-bottom:1px solid var(--line); font-size:13px; line-height:1.5; }
 .log-row:last-child{ border-bottom:none; }
