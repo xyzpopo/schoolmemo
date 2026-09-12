@@ -93,6 +93,7 @@ button{ -webkit-tap-highlight-color:transparent; cursor:pointer; border:none; }
 .log-time{ color:#5B5D63; font-size:11.5px; }
 .log-action{ font-weight:700; }
 .log-action.add{ color:var(--blue); }
+.log-action.edit{ color:var(--blue); }
 .log-action.delete{ color:var(--coral); }
 #app-main{ display:none; }
 
@@ -254,7 +255,7 @@ input[type=file]{
   word-break:break-word;
 }
 .entry-actions{ display:flex; gap:8px; margin-top:11px; }
-.entry-toggle, .entry-delete{
+.entry-toggle, .entry-delete, .entry-edit{
   font-size:12px;
   font-weight:700;
   border:none;
@@ -266,6 +267,9 @@ input[type=file]{
 .entry-toggle:hover{ background:var(--coral); color:#fff; }
 .entry-delete{ background:none; color:var(--coral); }
 .entry-delete:hover{ background:var(--coral); color:#fff; }
+.entry-edit{ background:none; color:var(--blue); }
+.entry-edit:hover{ background:var(--blue); color:#fff; }
+.entry-edit:active{ transform:scale(0.95); }
 .entry-toggle:active, .entry-delete:active{ transform:scale(0.95); }
 
 /* ---- calendar ---- */
@@ -309,6 +313,8 @@ input[type=file]{
   overflow:hidden;
 }
 .cal-cell.empty{ background:none; }
+.cal-cell.has-notes{ cursor:pointer; transition:background .15s ease; }
+.cal-cell.has-notes:hover{ background:rgba(18,18,18,0.09); }
 .cal-daynum{
   display:inline-block;
   font-size:clamp(12px,3.2vw,13.5px);
@@ -524,7 +530,7 @@ textarea{ resize:vertical; min-height:80px; }
 
 <div class="overlay" id="overlay">
   <div class="sheet">
-    <h2>메모 추가</h2>
+    <h2 id="modal-title">메모 추가</h2>
     <div class="field">
       <div class="date-title-row">
         <input type="number" id="input-month" class="date-num" inputmode="numeric" placeholder="월">
@@ -537,6 +543,7 @@ textarea{ resize:vertical; min-height:80px; }
     </div>
     <div class="field">
       <input type="file" id="input-image" accept="image/*">
+      <p id="image-hint" style="font-size:11.5px;color:#5B5D63;margin-top:4px;"></p>
     </div>
     <div class="field field-grow">
       <label>내용</label>
@@ -546,6 +553,16 @@ textarea{ resize:vertical; min-height:80px; }
     <div class="sheet-actions">
       <button class="btn btn-cancel" id="btn-cancel">취소</button>
       <button class="btn btn-save" id="btn-save">추가</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="day-overlay">
+  <div class="sheet" style="max-width:480px;">
+    <h2 id="day-title"></h2>
+    <div class="log-list" id="day-list"></div>
+    <div class="sheet-actions">
+      <button class="btn btn-cancel" id="btn-day-close">닫기</button>
     </div>
   </div>
 </div>
@@ -744,11 +761,38 @@ function hideFormWarning(){
 }
 sheetEl.addEventListener('animationend', ()=>{ sheetEl.classList.remove('shake'); });
 
-document.getElementById('fab-add').addEventListener('click', ()=>{
+let editingId = null;
+
+function openAddModal(){
+  editingId = null;
+  document.getElementById('modal-title').textContent = '메모 추가';
+  document.getElementById('btn-save').textContent = '추가';
+  document.getElementById('input-title').value = '';
+  document.getElementById('input-content').value = '';
+  document.getElementById('input-subject').value = '';
+  document.getElementById('input-image').value = '';
+  document.getElementById('image-hint').textContent = '';
   hideFormWarning();
   overlay.classList.add('active');
-});
+}
+function openEditModal(note){
+  editingId = note.id;
+  document.getElementById('modal-title').textContent = '메모 수정';
+  document.getElementById('btn-save').textContent = '수정';
+  monthSel.value = note.month;
+  daySel.value = note.day;
+  document.getElementById('input-title').value = note.title || '';
+  document.getElementById('input-content').value = note.content || '';
+  document.getElementById('input-subject').value = note.subject || '';
+  document.getElementById('input-image').value = '';
+  document.getElementById('image-hint').textContent = note.image ? '현재 이미지 있음 (새로 선택하면 교체됨)' : '';
+  hideFormWarning();
+  overlay.classList.add('active');
+}
+
+document.getElementById('fab-add').addEventListener('click', openAddModal);
 document.getElementById('btn-cancel').addEventListener('click', ()=>{
+  editingId = null;
   hideFormWarning();
   overlay.classList.remove('active');
 });
@@ -768,27 +812,38 @@ document.getElementById('btn-save').addEventListener('click', async ()=>{
     return;
   }
   hideFormWarning();
+  const saveBtn = document.getElementById('btn-save');
+  const busyLabel = editingId ? '처리 중…' : '처리 중…';
+  const doneLabel = editingId ? '수정' : '추가';
   const imageFile = document.getElementById('input-image').files[0];
-  let image = null;
+  let image = editingId ? (notes.find(n=>n.id===editingId)?.image ?? null) : null;
   if(imageFile){
-    const saveBtn = document.getElementById('btn-save');
     saveBtn.disabled = true;
-    saveBtn.textContent = '처리 중…';
+    saveBtn.textContent = busyLabel;
     try{
       image = await compressImage(imageFile);
     }catch(e){
       showFormWarning('이미지를 처리하지 못했습니다!');
       saveBtn.disabled = false;
-      saveBtn.textContent = '추가';
+      saveBtn.textContent = doneLabel;
       return;
     }
     saveBtn.disabled = false;
-    saveBtn.textContent = '추가';
+    saveBtn.textContent = doneLabel;
   }
-  const newNote = { id: Date.now(), month, day, subject, title, content, image, dismissed:false };
-  notes.push(newNote);
-  await saveNotes();
-  logActivity('add', newNote);
+
+  if(editingId){
+    const note = notes.find(n=>n.id===editingId);
+    Object.assign(note, { month, day, subject, title, content, image });
+    await saveNotes();
+    logActivity('edit', note);
+  } else {
+    const newNote = { id: Date.now(), month, day, subject, title, content, image, dismissed:false };
+    notes.push(newNote);
+    await saveNotes();
+    logActivity('add', newNote);
+  }
+  editingId = null;
   document.getElementById('input-title').value='';
   document.getElementById('input-content').value='';
   document.getElementById('input-subject').value='';
@@ -797,7 +852,77 @@ document.getElementById('btn-save').addEventListener('click', async ()=>{
   renderMemoList();
   renderCalendar();
 });
-overlay.addEventListener('click', (e)=>{ if(e.target===overlay) overlay.classList.remove('active'); });
+overlay.addEventListener('click', (e)=>{ if(e.target===overlay){ editingId=null; overlay.classList.remove('active'); } });
+
+let currentDayDetail = null;
+function openDayDetail(month, day){
+  currentDayDetail = { month, day };
+  renderDayDetail();
+  document.getElementById('day-overlay').classList.add('active');
+}
+function closeDayDetail(){
+  currentDayDetail = null;
+  document.getElementById('day-overlay').classList.remove('active');
+}
+function renderDayDetail(){
+  if(!currentDayDetail) return;
+  const { month, day } = currentDayDetail;
+  const dayNotes = notes.filter(n=>n.month===month && n.day===day);
+  document.getElementById('day-title').textContent = `${month}월 ${day}일`;
+  const listEl = document.getElementById('day-list');
+  if(dayNotes.length===0){
+    listEl.innerHTML = '<p style="color:#5B5D63;font-size:13px;">메모가 없습니다.</p>';
+    return;
+  }
+  listEl.innerHTML = dayNotes.map(n=>`
+    <div class="entry" style="padding:14px 0;">
+      <div class="entry-body" style="flex:1;">
+        <div class="entry-top">
+          ${n.subject?`<span class="entry-subject">${escapeHtml(n.subject)}</span>`:''}
+          <span class="entry-title" style="${n.dismissed?'text-decoration:line-through;color:#8A8C92;':''}">${escapeHtml(n.title)}</span>
+        </div>
+        ${n.content?`<div class="entry-content">${escapeHtml(n.content)}</div>`:''}
+        ${n.image?`<img class="entry-image" src="${n.image}" alt="">`:''}
+        <div class="entry-actions">
+          ${n.dismissed?'':`<button class="entry-toggle" data-id="${n.id}">해제</button>`}
+          <button class="entry-edit" data-id="${n.id}">수정</button>
+          <button class="entry-delete" data-id="${n.id}">삭제</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+  listEl.querySelectorAll('.entry-toggle').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const note = notes.find(n=>n.id===Number(btn.dataset.id));
+      note.dismissed = true;
+      await saveNotes();
+      logActivity('dismiss', note);
+      renderMemoList(); renderCalendar(); renderDayDetail();
+    });
+  });
+  listEl.querySelectorAll('.entry-delete').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = Number(btn.dataset.id);
+      const note = notes.find(n=>n.id===id);
+      if(!confirm('완전히 삭제할까요? 되돌릴 수 없습니다.')) return;
+      notes = notes.filter(n=>n.id!==id);
+      await saveNotes();
+      if(note) logActivity('delete', note);
+      renderMemoList(); renderCalendar(); renderDayDetail();
+    });
+  });
+  listEl.querySelectorAll('.entry-edit').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const note = notes.find(n=>n.id===Number(btn.dataset.id));
+      closeDayDetail();
+      openEditModal(note);
+    });
+  });
+}
+document.getElementById('btn-day-close').addEventListener('click', closeDayDetail);
+document.getElementById('day-overlay').addEventListener('click', (e)=>{
+  if(e.target.id==='day-overlay') closeDayDetail();
+});
 
 async function loadNotes(){
   memoListEl.innerHTML = '<div class="empty"><p>불러오는 중…</p></div>';
@@ -850,6 +975,7 @@ function renderMemoList(){
         ${n.image?`<img class="entry-image" src="${n.image}" alt="">`:''}
         <div class="entry-actions">
           <button class="entry-toggle" data-id="${n.id}">해제</button>
+          <button class="entry-edit" data-id="${n.id}">수정</button>
           <button class="entry-delete" data-id="${n.id}">삭제</button>
         </div>
       </div>
@@ -865,6 +991,12 @@ function renderMemoList(){
       logActivity('dismiss', note);
       renderMemoList();
       renderCalendar();
+    });
+  });
+  memoListEl.querySelectorAll('.entry-edit').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const note = notes.find(n=>n.id===Number(btn.dataset.id));
+      openEditModal(note);
     });
   });
   memoListEl.querySelectorAll('.entry-delete').forEach(btn=>{
@@ -930,12 +1062,18 @@ function renderCalendar(){
     const cls = ['cal-cell'];
     if(dow===0||dow===6) cls.push('weekend');
     if(isToday) cls.push('today');
-    html += `<div class="${cls.join(' ')}">
+    if(dayNotes.length>0) cls.push('has-notes');
+    html += `<div class="${cls.join(' ')}" data-month="${calMonth}" data-day="${day}">
       <span class="cal-daynum">${day}</span>
       ${dayNotes.map(n=>`<div class="cal-item ${n.dismissed?'dismissed':''}">${escapeHtml(n.title)}</div>`).join('')}
     </div>`;
   }
   grid.innerHTML = html;
+  grid.querySelectorAll('.cal-cell.has-notes').forEach(cell=>{
+    cell.addEventListener('click', ()=>{
+      openDayDetail(parseInt(cell.dataset.month), parseInt(cell.dataset.day));
+    });
+  });
 }
 
 function enterApp(){
@@ -1043,7 +1181,7 @@ document.getElementById('btn-log').addEventListener('click', async ()=>{
     listEl.innerHTML = '<p style="color:#5B5D63;font-size:13px;">기록이 없습니다.</p>';
     return;
   }
-  const actionLabel = { add:'추가', dismiss:'해제', delete:'삭제' };
+  const actionLabel = { add:'추가', dismiss:'해제', delete:'삭제', edit:'수정' };
   listEl.innerHTML = entries.map(e=>{
     const d = new Date(e.at);
     const timeStr = `${d.getMonth()+1}.${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
