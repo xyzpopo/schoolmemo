@@ -543,7 +543,10 @@ textarea{ resize:vertical; min-height:80px; }
     </div>
     <div class="field">
       <input type="file" id="input-image" accept="image/*">
-      <p id="image-hint" style="font-size:11.5px;color:#5B5D63;margin-top:4px;"></p>
+      <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+        <p id="image-hint" style="font-size:11.5px;color:#5B5D63; flex:1; margin:0;"></p>
+        <button type="button" id="btn-remove-image" style="display:none; font-size:11.5px; font-weight:700; color:var(--coral); background:none; border:none; padding:2px 6px;">이미지 삭제</button>
+      </div>
     </div>
     <div class="field field-grow">
       <label>내용</label>
@@ -728,7 +731,7 @@ function shakeEl(el){
   void el.offsetWidth;
   el.classList.add('shake');
 }
-function compressImage(file, maxDim=640, quality=0.6){
+function compressImage(file, maxDim=1000, quality=0.75){
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
     reader.onload = ()=>{
@@ -762,9 +765,11 @@ function hideFormWarning(){
 sheetEl.addEventListener('animationend', ()=>{ sheetEl.classList.remove('shake'); });
 
 let editingId = null;
+let imageRemoved = false;
 
 function openAddModal(){
   editingId = null;
+  imageRemoved = false;
   document.getElementById('modal-title').textContent = '메모 추가';
   document.getElementById('btn-save').textContent = '추가';
   document.getElementById('input-title').value = '';
@@ -772,11 +777,13 @@ function openAddModal(){
   document.getElementById('input-subject').value = '';
   document.getElementById('input-image').value = '';
   document.getElementById('image-hint').textContent = '';
+  document.getElementById('btn-remove-image').style.display = 'none';
   hideFormWarning();
   overlay.classList.add('active');
 }
 function openEditModal(note){
   editingId = note.id;
+  imageRemoved = false;
   document.getElementById('modal-title').textContent = '메모 수정';
   document.getElementById('btn-save').textContent = '수정';
   monthSel.value = note.month;
@@ -786,9 +793,23 @@ function openEditModal(note){
   document.getElementById('input-subject').value = note.subject || '';
   document.getElementById('input-image').value = '';
   document.getElementById('image-hint').textContent = note.image ? '현재 이미지 있음 (새로 선택하면 교체됨)' : '';
+  document.getElementById('btn-remove-image').style.display = note.image ? 'block' : 'none';
   hideFormWarning();
   overlay.classList.add('active');
 }
+document.getElementById('btn-remove-image').addEventListener('click', ()=>{
+  imageRemoved = true;
+  document.getElementById('input-image').value = '';
+  document.getElementById('image-hint').textContent = '이미지가 삭제됩니다';
+  document.getElementById('btn-remove-image').style.display = 'none';
+});
+document.getElementById('input-image').addEventListener('change', ()=>{
+  if(document.getElementById('input-image').files[0]){
+    imageRemoved = false;
+    document.getElementById('image-hint').textContent = '';
+    document.getElementById('btn-remove-image').style.display = 'none';
+  }
+});
 
 document.getElementById('fab-add').addEventListener('click', openAddModal);
 document.getElementById('btn-cancel').addEventListener('click', ()=>{
@@ -830,6 +851,8 @@ document.getElementById('btn-save').addEventListener('click', async ()=>{
     }
     saveBtn.disabled = false;
     saveBtn.textContent = doneLabel;
+  } else if(imageRemoved){
+    image = null;
   }
 
   if(editingId){
@@ -883,41 +906,9 @@ function renderDayDetail(){
         </div>
         ${n.content?`<div class="entry-content">${escapeHtml(n.content)}</div>`:''}
         ${n.image?`<img class="entry-image" src="${n.image}" alt="">`:''}
-        <div class="entry-actions">
-          ${n.dismissed?'':`<button class="entry-toggle" data-id="${n.id}">해제</button>`}
-          <button class="entry-edit" data-id="${n.id}">수정</button>
-          <button class="entry-delete" data-id="${n.id}">삭제</button>
-        </div>
       </div>
     </div>
   `).join('');
-  listEl.querySelectorAll('.entry-toggle').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const note = notes.find(n=>n.id===Number(btn.dataset.id));
-      note.dismissed = true;
-      await saveNotes();
-      logActivity('dismiss', note);
-      renderMemoList(); renderCalendar(); renderDayDetail();
-    });
-  });
-  listEl.querySelectorAll('.entry-delete').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const id = Number(btn.dataset.id);
-      const note = notes.find(n=>n.id===id);
-      if(!confirm('완전히 삭제할까요? 되돌릴 수 없습니다.')) return;
-      notes = notes.filter(n=>n.id!==id);
-      await saveNotes();
-      if(note) logActivity('delete', note);
-      renderMemoList(); renderCalendar(); renderDayDetail();
-    });
-  });
-  listEl.querySelectorAll('.entry-edit').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const note = notes.find(n=>n.id===Number(btn.dataset.id));
-      closeDayDetail();
-      openEditModal(note);
-    });
-  });
 }
 document.getElementById('btn-day-close').addEventListener('click', closeDayDetail);
 document.getElementById('day-overlay').addEventListener('click', (e)=>{
