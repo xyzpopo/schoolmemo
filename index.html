@@ -977,6 +977,7 @@ function renderMemoList(){
     btn.addEventListener('click', async ()=>{
       const id = Number(btn.dataset.id);
       const note = notes.find(n=>n.id===id);
+      if(!confirm('메모를 해제할까요?')) return;
       note.dismissed = true;
       await saveNotes();
       logActivity('dismiss', note);
