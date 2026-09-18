@@ -70,7 +70,7 @@ button{ -webkit-tap-highlight-color:transparent; cursor:pointer; border:none; }
 .auth-note{ font-size:13px; color:#5B5D63; margin-bottom:18px; line-height:1.5; }
 .auth-card .btn{ width:100%; margin-top:6px; }
 .user-bar{
-  display:flex; align-items:center; justify-content:flex-end; gap:8px;
+  display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;
   padding:10px clamp(20px,4.5vw,36px) 0;
   font-size:12px; color:#5B5D63;
 }
@@ -85,8 +85,25 @@ button{ -webkit-tap-highlight-color:transparent; cursor:pointer; border:none; }
 }
 #btn-log{ color:var(--ink); }
 #btn-log:hover{ background:var(--blue); color:#fff; }
+#btn-announce{ color:var(--blue); }
+#btn-announce:hover{ background:var(--blue); color:#fff; }
 #btn-logout{ color:var(--coral); }
 #btn-logout:hover{ background:var(--coral); color:#fff; }
+.announce-bar{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  background:rgba(46,75,255,0.1);
+  color:var(--ink);
+  font-size:13px;
+  font-weight:600;
+  line-height:1.5;
+  padding:12px clamp(20px,4.5vw,36px);
+}
+.announce-bar span{ flex:1; }
+.announce-bar button{
+  background:none; border:none; color:var(--blue); font-size:18px; font-weight:700; line-height:1; padding:0 2px; flex-shrink:0;
+}
 .log-list{ flex:1; overflow-y:auto; min-height:0; margin-bottom:12px; }
 .log-row{ padding:10px 0; border-bottom:1px solid var(--line); font-size:13px; line-height:1.5; }
 .log-row:last-child{ border-bottom:none; }
@@ -500,8 +517,13 @@ textarea{ resize:vertical; min-height:80px; }
   </header>
   <div class="user-bar">
     <span id="user-label"></span>
+    <button id="btn-announce">공지</button>
     <button id="btn-log">기록</button>
     <button id="btn-logout">로그아웃</button>
+  </div>
+  <div class="announce-bar" id="announce-bar" style="display:none;">
+    <span id="announce-text"></span>
+    <button id="announce-close" aria-label="닫기">×</button>
   </div>
 
   <main>
@@ -570,6 +592,19 @@ textarea{ resize:vertical; min-height:80px; }
   </div>
 </div>
 
+<div class="overlay" id="announce-overlay">
+  <div class="sheet" style="max-width:440px;">
+    <h2>공지 편집</h2>
+    <div class="field">
+      <textarea id="announce-input" placeholder="공지 내용 (비워두고 저장하면 삭제됨)" style="min-height:100px;"></textarea>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn btn-cancel" id="btn-announce-cancel">취소</button>
+      <button class="btn btn-save" id="btn-announce-save">저장</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="log-overlay">
   <div class="sheet" style="max-width:480px;">
     <h2>활동 기록</h2>
@@ -600,6 +635,8 @@ const db = getFirestore(firebaseApp);
 const notesRef = doc(db, "memo-app", "notes");
 const accountsRef = doc(db, "memo-app", "accounts");
 const logRef = doc(db, "memo-app", "activity-log");
+const announcementRef = doc(db, "memo-app", "announcement");
+const ANNOUNCE_DISMISS_KEY = "memo-app-announce-dismissed";
 const SESSION_KEY = "memo-app-session";
 let currentUser = null;
 let accounts = {};
@@ -1074,7 +1111,58 @@ function enterApp(){
   document.getElementById('app-main').style.display = 'block';
   document.getElementById('user-label').textContent = currentUser.number + '번';
   loadNotes();
+  loadAnnouncement();
 }
+async function loadAnnouncement(){
+  try{
+    const snap = await getDoc(announcementRef);
+    const data = snap.exists() ? snap.data() : null;
+    const text = data && data.text ? data.text.trim() : '';
+    const bar = document.getElementById('announce-bar');
+    if(!text){
+      bar.style.display = 'none';
+      return;
+    }
+    let dismissed = '';
+    try{ dismissed = localStorage.getItem(ANNOUNCE_DISMISS_KEY) || ''; }catch(e){}
+    if(dismissed && dismissed === data.at){
+      bar.style.display = 'none';
+      return;
+    }
+    document.getElementById('announce-text').textContent = text;
+    bar.dataset.at = data.at || '';
+    bar.style.display = 'flex';
+  }catch(e){}
+}
+document.getElementById('announce-close').addEventListener('click', ()=>{
+  const bar = document.getElementById('announce-bar');
+  try{ localStorage.setItem(ANNOUNCE_DISMISS_KEY, bar.dataset.at || ''); }catch(e){}
+  bar.style.display = 'none';
+});
+document.getElementById('btn-announce').addEventListener('click', async ()=>{
+  let current = '';
+  try{
+    const snap = await getDoc(announcementRef);
+    current = snap.exists() ? (snap.data().text || '') : '';
+  }catch(e){}
+  document.getElementById('announce-input').value = current;
+  document.getElementById('announce-overlay').classList.add('active');
+});
+document.getElementById('btn-announce-cancel').addEventListener('click', ()=>{
+  document.getElementById('announce-overlay').classList.remove('active');
+});
+document.getElementById('btn-announce-save').addEventListener('click', async ()=>{
+  const text = document.getElementById('announce-input').value.trim();
+  const at = new Date().toISOString();
+  try{
+    await setDoc(announcementRef, { text, by: currentUser.number, at });
+  }catch(e){}
+  document.getElementById('announce-overlay').classList.remove('active');
+  loadAnnouncement();
+});
+document.getElementById('announce-overlay').addEventListener('click', (e)=>{
+  if(e.target.id==='announce-overlay') document.getElementById('announce-overlay').classList.remove('active');
+});
 function showChangePassword(){
   document.getElementById('auth-login').style.display = 'none';
   document.getElementById('auth-changepw').style.display = 'flex';
