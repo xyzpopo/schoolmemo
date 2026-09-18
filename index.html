@@ -1010,22 +1010,30 @@ function renderMemoList(){
     memoListEl.innerHTML = '<div class="empty"><p>첫 메모를 추가하세요.</p></div>';
     return;
   }
+  const dateKey = n => n.month*100 + n.day;
   const groups = new Map();
-  visible.forEach((n, i)=>{
+  visible.forEach(n=>{
     const key = n.subject && n.subject.trim() ? n.subject.trim() : '__ETC__';
     if(!groups.has(key)) groups.set(key, []);
-    groups.get(key).push({ ...n, num: i+1 });
+    groups.get(key).push(n);
   });
-  const keys = [...groups.keys()];
-  const ordered = [...keys.filter(k=>k!=='__ETC__'), ...(keys.includes('__ETC__') ? ['__ETC__'] : [])];
+  groups.forEach(list=> list.sort((a,b)=> dateKey(a)-dateKey(b)));
+  const ordered = [...groups.keys()].sort((a,b)=>{
+    const earliestA = Math.min(...groups.get(a).map(dateKey));
+    const earliestB = Math.min(...groups.get(b).map(dateKey));
+    return earliestA - earliestB;
+  });
 
+  let counter = 0;
   memoListEl.innerHTML = ordered.map(key=>{
     const label = key === '__ETC__' ? '기타' : key;
     return `
     <div class="group-head">${escapeHtml(label)}</div>
-    ${groups.get(key).map(n=>`
+    ${groups.get(key).map(n=>{
+      counter++;
+      return `
     <div class="entry">
-      <div class="entry-badge">${String(n.num).padStart(2,'0')}</div>
+      <div class="entry-badge">${String(counter).padStart(2,'0')}</div>
       <div class="entry-body">
         <div class="entry-top">
           <span class="entry-date">${String(n.month).padStart(2,'0')}.${String(n.day).padStart(2,'0')}</span>
@@ -1040,7 +1048,8 @@ function renderMemoList(){
         </div>
       </div>
     </div>
-  `).join('')}`;
+  `;
+    }).join('')}`;
   }).join('');
   memoListEl.querySelectorAll('.entry-toggle').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
