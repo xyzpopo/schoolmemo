@@ -91,19 +91,47 @@ button{ -webkit-tap-highlight-color:transparent; cursor:pointer; border:none; }
 #btn-logout:hover{ background:var(--coral); color:#fff; }
 .announce-bar{
   display:flex;
-  align-items:center;
-  gap:10px;
-  background:rgba(46,75,255,0.1);
+  align-items:flex-start;
+  gap:12px;
+  background:var(--surface);
+  border-left:4px solid var(--blue);
+  border-radius:var(--r-ui);
+  margin:14px clamp(20px,4.5vw,36px) 0;
+  padding:14px 16px;
+  box-shadow:0 6px 20px rgba(18,18,18,0.08);
+}
+.announce-icon{
+  width:22px; height:22px;
+  border-radius:50%;
+  background:var(--blue);
+  color:#fff;
+  font-size:12px;
+  font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+  margin-top:1px;
+}
+.announce-body{ flex:1; min-width:0; }
+.announce-label{
+  font-size:11px;
+  font-weight:800;
+  color:var(--blue);
+  margin-bottom:3px;
+}
+.announce-text{
+  font-size:13.5px;
+  font-weight:500;
   color:var(--ink);
-  font-size:13px;
-  font-weight:600;
-  line-height:1.5;
-  padding:12px clamp(20px,4.5vw,36px);
+  line-height:1.55;
+  white-space:pre-wrap;
+  word-break:break-word;
 }
-.announce-bar span{ flex:1; }
-.announce-bar button{
-  background:none; border:none; color:var(--blue); font-size:18px; font-weight:700; line-height:1; padding:0 2px; flex-shrink:0;
+.announce-close{
+  background:none; border:none; color:#8A8C92; font-size:18px; font-weight:700; line-height:1;
+  padding:2px 6px; flex-shrink:0; border-radius:50%;
+  transition:background .15s ease, color .15s ease;
 }
+.announce-close:hover{ background:var(--field); color:var(--ink); }
 .log-list{ flex:1; overflow-y:auto; min-height:0; margin-bottom:12px; }
 .log-row{ padding:10px 0; border-bottom:1px solid var(--line); font-size:13px; line-height:1.5; }
 .log-row:last-child{ border-bottom:none; }
@@ -522,8 +550,12 @@ textarea{ resize:vertical; min-height:80px; }
     <button id="btn-logout">로그아웃</button>
   </div>
   <div class="announce-bar" id="announce-bar" style="display:none;">
-    <span id="announce-text"></span>
-    <button id="announce-close" aria-label="닫기">×</button>
+    <div class="announce-icon">!</div>
+    <div class="announce-body">
+      <div class="announce-label">공지</div>
+      <div class="announce-text" id="announce-text"></div>
+    </div>
+    <button class="announce-close" id="announce-close" aria-label="닫기">×</button>
   </div>
 
   <main>
